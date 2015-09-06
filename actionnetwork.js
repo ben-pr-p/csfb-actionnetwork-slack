@@ -11,9 +11,10 @@ if (!anKey) {
 var exports = {};
 
 /**
- * Function to make the request – need to use [] method because of the - in api-key
+ * Initializes request to Aciton Network api
+ * @param  {String} url [api specific call]
+ * @return {Dictionary} [formatted data dictionary]
  */
-
 function initializeRequest(url) {
   var headers = {};
   headers['api-key'] = anKey;
@@ -27,9 +28,9 @@ function initializeRequest(url) {
 }
 
 /**
- * Get the number of pages
+ * Gets the number of pages in action network peope
+ * @param  {Function} fn [callback function - get's passed (err, number of pages)]
  */
-
 function getNumberOfPages(fn) {
   var options = initializeRequest('https://actionnetwork.org/api/v1/people');
 
@@ -46,9 +47,10 @@ function getNumberOfPages(fn) {
 }
 
 /**
- * Get page number page, return JSON parse response body
+ * Gets data for a particular page
+ * @param  {Number}   page [page number to get]
+ * @param  {Function} fn   [callback function with params (err, data)]
  */
-
 function getPage(page, fn) {
   var options = initializeRequest('https://actionnetwork.org/api/v1/people?page=' + page.toString());
 
@@ -61,14 +63,15 @@ function getPage(page, fn) {
     var data = JSON.parse(body);
     log('Fetched page %d', page);
 
-    fn(null, data);
+    return fn(null, data);
   })
 }
 
-/*
- * Parse response data as JSON and return each person's primary email
+/**
+ * [parseEmails description]
+ * @param  {[type]} data    [JSON response body data]
+ * @return {[type]} emails  [just each user's primary email]
  */
-
 function parseEmails(data) {
   var emails = [];
   var people = data['_embedded']['osdi:people'];
@@ -108,11 +111,14 @@ function updateEmails(emails, latest, idx, fn) {
   });
 }
 
-/*
- * Gets emails from page @param page
- * Adds them to @param emails
+/**
+ * Recursively calls itself on next page until reached email that is recognized
+ * Updates next email 
+ * @param  {Dictionary}   emails  [list to add latest emails to]
+ * @param  {Number}   page        [page number to fetch]
+ * @param  {Function} fn          [callback function with params (err, emails)]
+ * @return {Function}             [callback function]
  */
-
 function updateNextPage(emails, page, fn) {
   getPage(page, function (err, data) {
     if (err) {
@@ -125,7 +131,7 @@ function updateNextPage(emails, page, fn) {
     updateEmails(emails, latest, latest.length - 1, function(err, done, emails) {
       if (page == 1 || done) {
         // base case
-        fn(null, emails);
+        return fn(null, emails);
       } else {
         // recurse
         updateNextPage(emails, page - 1, fn);
@@ -134,6 +140,10 @@ function updateNextPage(emails, page, fn) {
   });
 }
 
+/**
+ * Adds new emails to database and callbacks with new emails
+ * @param  {Function} fn [callback with params (err, new emails)]
+ */
 exports.update = function (fn) {
   getNumberOfPages(function (err, pages) {
     if (err) return fn(err);
