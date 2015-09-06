@@ -16,7 +16,13 @@ if (!slackUrl) {
 
 var exports = {};
 
-exports.invite = function (email, fn) {
+/**
+ * Invite single email
+ * @param  {String}   email [email to invite]
+ * @param  {Function} fn    [callback function with params (err, data)]
+ * @return {Function}       [callback]
+ */
+function invite(email, fn) {
   var options = {
     url: 'https://' + slackUrl + '/api/users.admin.invite',
     form: {
@@ -35,12 +41,32 @@ exports.invite = function (email, fn) {
     var data = JSON.parse(body);
     if (data.ok) {
       log('Success! Check ' + email + ' for an email from Slack.');
-      fn(null, data);
+      return fn(null, data);
     } else {
       log('Failed! ' + data.error);
-      fn(null, data);
+      return fn(null, data);
     }
   });
+}
+
+/**
+ * Invites a list of emails recursively by updating the idx
+ * @param  {Array}   emailList  [list of emails to invite]
+ * @param  {Number}   idx       [current index]
+ * @param  {Function} fn        [callback function with params (err, emailList)]
+ * @return {Function}           [description]
+ */
+exports.inviteList = function (emailList, idx, fn) {
+  // base case
+  if (idx == emailList.length) {
+    return fn(null, emailList)
+  }
+
+  invite(emailList[idx], function (err, data) {
+    if (err) return fn(err);
+
+    inviteList(emailList, idx + 1, fn);
+  })
 }
 
 module.exports = exports;
