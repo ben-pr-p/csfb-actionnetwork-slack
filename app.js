@@ -7,23 +7,13 @@ var log = require('./debug')('csfb-actionnetwork:app')
 var anAPI = require('./actionnetwork');
 var slackAPI = require('./slack-api');
 
-var INTERVAL = process.env.INTERVAL;
-if (!INTERVAL) {
-  log('Missing env var INTERVAL - suggested interval is 10 minutes - interval should be number of minutes – exiting...');
-  process.exit();
-}
-
-var interval = INTERVAL * 60 * 1000;
-
 /*
  * Get it started!
  */ 
 
-setInterval(function () {
-  log('Request for emails recieved');
-  var emails = anAPI.update(function (err, emails) {
-    slackAPI.inviteList(emails, 0, function (err, data) {
-      log('Successfully invited %j', data);
-    });
-  })
-}, interval);
+log('Searching for emails to invite.');
+var emails = anAPI.update(function (err, emails) {
+  slackAPI.inviteList(emails, 0, function (err, data) {
+    log('Successfully invited %j', data);
+  });
+});
