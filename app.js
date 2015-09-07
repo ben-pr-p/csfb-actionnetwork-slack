@@ -22,7 +22,7 @@ var interval = INTERVAL * 60 * 1000;
 setInterval(function () {
   log('Request for emails recieved');
   var emails = anAPI.update(function (err, emails) {
-    slackAPI.inviteList(['test1@mailinator.com', 'test2@mailinator.com'], 0, function (err, data) {
+    slackAPI.inviteList(emails, 0, function (err, data) {
       log('Successfully invited %j', data);
     });
   })
