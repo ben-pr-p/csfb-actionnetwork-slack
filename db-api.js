@@ -1,16 +1,22 @@
 var mongoose = require('mongoose');
 var log = require('./debug')('csfb-actionnetwork:db-api');
 
-var Email = mongoose.model('Email');
+var Call = mongoose.model('Call');
 
 /**
  * Add's email to database
- * @param {String}   email [email to add]
- * @param {Function} fn    [callback with params (err, email)]
+ * @param {String}   date  [date of most recent call]
+ * @param {Function} fn    [callback with params (err, date)]
  */
-exports.addEmail = function (email, fn) {
-  var e = new Email({email:email});
-  e.save(onsave);
+function updateLastCall(lastCall, date, fn) {
+  if (lastCall == null) {
+    var lc = new Call({date:date});
+    lc.save(onsave);
+  } else {
+    lc = lastCall;
+    lc.date = date;
+    lc.save(onsave);
+  }
 
   function onsave(err) {
     if (err) {
@@ -18,33 +24,35 @@ exports.addEmail = function (email, fn) {
       return fn(err);
     }
 
-    log('Saved email %s', e.email);
-    fn(null, e.email);
+    log('Saved last call at time %s', lc.date.toISOString());
+    fn(null, lc.date);
   }
 }
 
 /**
- * Checks if email exists in the database
- * @param  {String}   email [email to check if exists]
- * @param  {Function} fn    [callback function with params (err, exists(Boolean))]
- * @return {Function}       [callback]
+ * Get the time of the last call to action network's api
+ * @param  {Function} fn [callback function with params (err, lastCallDate)]
+ * @return {Function}    [callback]
  */
-exports.haveEmail = function (email, fn) {
-  Email.count({email: email}, function (err, count) {
+exports.getLastCall = function (fn) {
+  Call.findOne({}, function (err, lastCall) {
     if (err) {
       log('Found error %s', err);
       return fn(err);
     }
 
-    if (count == 0) {
-      log('Email %s not found', email);
-      exports.addEmail(email, function(err, email) {
-        return fn(null, false);
-      });
-    } else {
-      log('Email %s found with count %d', email, count);
-      return fn(null, true);
-    }
+    // update the time, lastCall will still be the old time
+    updateLastCall(lastCall, new Date(), function (err, date) {
+      if (lastCall == null) {
+        // if it's the first the script is being run, start from the beginning
+        log('First time being run – last call of %s', new Date(0).toISOString());
+        return fn(err, new Date(0).toISOString());
+      } else {
+        // callback with the old time
+        log('Was last run at time %s', lastCall.date.toISOString());
+        return fn(err, lastCall.date.toISOString());
+      }
 
+    });
   });
 }

@@ -10,11 +10,9 @@ if (!slackToken) {
 }
 
 if (!slackUrl) {
-  log('Missing env var SLACK_URL - exiting...');
+  log('Missing env var SLACK_URL - should be something like teamname.slack.com - exiting...');
   process.exit();
 }
-
-var exports = {};
 
 /**
  * Invite single email
@@ -56,7 +54,7 @@ function invite(email, fn) {
  * @param  {Function} fn        [callback function with params (err, emailList)]
  * @return {Function}           [description]
  */
-exports.inviteList = function (emailList, idx, fn) {
+function inviteList(emailList, idx, fn) {
   // base case
   if (idx == emailList.length) {
     return fn(null, emailList)
@@ -69,4 +67,5 @@ exports.inviteList = function (emailList, idx, fn) {
   })
 }
 
+exports = {inviteList: inviteList};
 module.exports = exports;

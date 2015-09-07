@@ -1,4 +1,5 @@
 var request = require('request');
+var querystring = require('querystring');
 var log = require('./debug')('csfb-actionnetwork:actionnetwork');
 var dbApi = require('./db-api');
 
@@ -8,16 +9,24 @@ if (!anKey) {
   process.exit();
 }
 
+var PEOPLE_URL = 'https://actionnetwork.org/api/v1/people?';
+
 var exports = {};
 
 /**
- * Initializes request to Aciton Network api
- * @param  {String} url [api specific call]
- * @return {Dictionary} [formatted data dictionary]
+ * Initializes request to action network's API
+ * @param  {String} url           [url to get]
+ * @param  {Dictionary} queryDict [any additional query parameters you would like]
+ * @param  {Date} lastCall        [time of last call to be added as query parameter]
+ * @return {Dictionary}           [options for request]
  */
-function initializeRequest(url) {
+function initializeRequest(url, queryDict, lastCall) {
   var headers = {};
   headers['api-key'] = anKey;
+
+  queryDict['filter'] = "modified_at gt '" + lastCall + "'";
+
+  var url = url + querystring.stringify(queryDict);
 
   var options = {
     url: url,
@@ -28,11 +37,12 @@ function initializeRequest(url) {
 }
 
 /**
- * Gets the number of pages in action network peope
- * @param  {Function} fn [callback function - get's passed (err, number of pages)]
+ * Get the number of pages in a specific call
+ * @param  {Date}   lastCall   [time of last update]
+ * @param  {Function} fn       [callback function with params (err, total pages)]
  */
-function getNumberOfPages(fn) {
-  var options = initializeRequest('https://actionnetwork.org/api/v1/people');
+function getNumberOfPages(lastCall, fn) {
+  var options = initializeRequest(PEOPLE_URL, {}, lastCall);
 
   request(options, function (err, response, body) {
     if (err) {
@@ -47,12 +57,14 @@ function getNumberOfPages(fn) {
 }
 
 /**
- * Gets data for a particular page
- * @param  {Number}   page [page number to get]
- * @param  {Function} fn   [callback function with params (err, data)]
+ * Get page and callback with page data as JSON
+ * @param  {Date}   lastCall   [time of last update]
+ * @param  {Number}   page     [current page to get]
+ * @param  {Function} fn       [callback function with params (err, data)]
  */
-function getPage(page, fn) {
-  var options = initializeRequest('https://actionnetwork.org/api/v1/people?page=' + page.toString());
+function getPage(lastCall, page, fn) {
+  var query = {page: page}
+  var options = initializeRequest(PEOPLE_URL, query, lastCall);
 
   request(options, function (err, response, body) {
     if (err) {
@@ -69,8 +81,8 @@ function getPage(page, fn) {
 
 /**
  * [parseEmails description]
- * @param  {[type]} data    [JSON response body data]
- * @return {[type]} emails  [just each user's primary email]
+ * @param  {Dictionary} data   [JSON response body data]
+ * @return {Array} emails      [just each user's primary email]
  */
 function parseEmails(data) {
   var emails = [];
@@ -90,37 +102,20 @@ function parseEmails(data) {
   return emails;
 }
 
-/*
- * Add new emails, callback with new emails included in original parameter list
+/**
+ * Get's the next page's new emails recursively
+ * @param  {Date}   lastCall   [time of last update]
+ * @param  {Array}   emails    [emails from previous call]
+ * @param  {Number}   page     [page to get]
+ * @param  {Function} fn       [callback function with params (err, emails)]
  */
-
-function updateEmails(emails, latest, idx, fn) {
-  if (idx < 0) {
-    log('At the end of the pages.');
-    return fn(null, false, emails);
+function updateNextPage(lastCall, emails, page, fn) {
+  // base case
+  if (page == 0) {
+    return fn(null, emails);
   }
 
-  dbApi.haveEmail(latest[idx], function (err, exists) {
-    if (!exists) {
-      emails.push(latest[idx]);
-      updateEmails(emails, latest, idx - 1, fn);
-    } else {
-      log('Reached someone I know – stopping here.');
-      return fn(null, true, emails);
-    }
-  });
-}
-
-/**
- * Recursively calls itself on next page until reached email that is recognized
- * Updates next email 
- * @param  {Dictionary}   emails  [list to add latest emails to]
- * @param  {Number}   page        [page number to fetch]
- * @param  {Function} fn          [callback function with params (err, emails)]
- * @return {Function}             [callback function]
- */
-function updateNextPage(emails, page, fn) {
-  getPage(page, function (err, data) {
+  getPage(lastCall, page, function (err, data) {
     if (err) {
       log('Found error %j', err);
       return fn(err);
@@ -128,15 +123,12 @@ function updateNextPage(emails, page, fn) {
 
     var latest = parseEmails(data);
 
-    updateEmails(emails, latest, latest.length - 1, function(err, done, emails) {
-      if (page == 1 || done) {
-        // base case
-        return fn(null, emails);
-      } else {
-        // recurse
-        updateNextPage(emails, page - 1, fn);
-      }
-    });
+    for (var i = latest.length - 1; i >= 0; i--) {
+      emails.push(latest[i]);
+    };
+
+    // recurse
+    return updateNextPage(lastCall, emails, page - 1, fn);
   });
 }
 
@@ -145,15 +137,20 @@ function updateNextPage(emails, page, fn) {
  * @param  {Function} fn [callback with params (err, new emails)]
  */
 exports.update = function (fn) {
-  getNumberOfPages(function (err, pages) {
+  dbApi.getLastCall(function (err, lastCall) {
     if (err) return fn(err);
-    
-    var emails = [];
-    updateNextPage(emails, pages, function(err, emails) {
-      if (err) return fn(err);
 
-      return fn(null, emails);
-    });
+    getNumberOfPages(lastCall, function (err, pages) {
+      if (err) return fn(err);
+      
+      var emails = [];
+      updateNextPage(lastCall, emails, pages, function(err, emails) {
+        if (err) return fn(err);
+
+        log('Done getting emails, got %d of them', emails.length);
+        return fn(null, emails);
+      });
+    });    
   });
 }
 

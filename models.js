@@ -1,9 +1,9 @@
 var mongoose = require('mongoose');
 
-var emailSchema = mongoose.Schema({
-  email: String
+var callSchema = mongoose.Schema({
+  date: {type: Date, default: Date.now}
 });
 
 module.exports = function initialize(conn) {
-  conn.model('Email', emailSchema);
+  conn.model('Call', callSchema);
 }
