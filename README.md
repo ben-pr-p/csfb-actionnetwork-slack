@@ -58,3 +58,7 @@ If you'd like a more customized interval behavior, that's pretty easy to do. Jus
 `setInterval(main, Interval)`
 
 Now, `node app.js` will make it run on the scheduled interval in milliseconds. In order to do heroku stuff, you'll also need to make a Procfile, so that complicates things a bit. Just email me.
+
+### Time
+
+Both NodeJS and Heroku's scheduler addon use UTC (Coordinated Universal Time), so don't be surprised when it doesn't match up with your local time!
