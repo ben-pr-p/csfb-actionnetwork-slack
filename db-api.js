@@ -41,6 +41,8 @@ exports.getLastCall = function (fn) {
       return fn(err);
     }
 
+    var oldDate = lastCall.date.toISOString();
+
     // update the time, lastCall will still be the old time
     updateLastCall(lastCall, new Date(), function (err, date) {
       if (lastCall == null) {
@@ -49,8 +51,8 @@ exports.getLastCall = function (fn) {
         return fn(err, new Date(0).toISOString());
       } else {
         // callback with the old time
-        log('Was last run at time %s', lastCall.date.toISOString());
-        return fn(err, lastCall.date.toISOString());
+        log('Was last run at time %s', oldDate);
+        return fn(err, oldDate);
       }
 
     });
